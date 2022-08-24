@@ -27,27 +27,30 @@
 	if(!check_rights_for(c, R_DEBUG))
 		to_chat(c, span_red("Warning, +DEBUG required to use this build mode. You will not be able to call any lua function."))
 		to_chat(c, span_notice("*********************************************************** "))
+		return
 	to_chat(c, span_notice("Right mouse button on the buildmode button to select a lua state from existing ones."))
 	to_chat(c, span_notice("Different modifier key combinations call different functions. They all get clicked atom and your client as arguments."))
-	to_chat(c, span_notice("The lua functions you can define:"))
-	to_chat(c, span_notice("	LeftClick(atom, client)"))
-	to_chat(c, span_notice("	MiddleClick(atom, client)"))
-	to_chat(c, span_notice("	RightClick(atom, client)"))	
-	to_chat(c, span_notice("	AltLeftClick(atom, client)"))
-	to_chat(c, span_notice("	AltMiddleClick(atom, client)"))
-	to_chat(c, span_notice("	AltRightClick(atom, client)"))
-	to_chat(c, span_notice("	CtrlLeftClick(atom, client)"))
-	to_chat(c, span_notice("	CtrlMiddleClick(atom, client)"))
-	to_chat(c, span_notice("	CtrlRightClick(atom, client)"))
-	to_chat(c, span_notice("	CtrlAltLeftClick(atom, client)"))
-	to_chat(c, span_notice("	CtrlAltMiddleClick(atom, client)"))
-	to_chat(c, span_notice("	CtrlAltRightClick(atom, client)"))
-	to_chat(c, span_notice("Keep in mind that if a function is not defined, it will still be called (unsuccessfully)"))
-	to_chat(c, span_notice("***********************************************************  "))
+	to_chat(c, span_notice("The lua functions for the you can define:"))
+	to_chat(c, span_notice("	CtrlAltShift\[Left/Middle/Right]Click(atom, client)"))
+	to_chat(c, span_notice("		Add/remove the modifier keys from the function name to bind it to a certain"))
+	to_chat(c, span_notice("		combination <i><u>but do not change their order.</u></i>"))
+	to_chat(c, span_notice("		e.g. CtrlShiftLeftClick(), AltShiftMiddleClick(), CtrlRightClick(), AltMiddleClick(), etc."))
+	to_chat(c, span_notice("	show_help(client)"))
+	to_chat(c, span_notice("		Should return an html string which will be displayed below."))
+	to_chat(c, span_notice("Return a string before sleeping/yielding to display it in chat. If returning a list, every entry will be displayed at a new line."))
+	to_chat(c, span_notice("Keep in mind that if a function is not defined, it will still be called. (unsuccessfully) This shouldn't be a problem though."))
 	to_chat(c, span_notice("Your selected lua state is saved when you exit buildmode until the end of the round!"))
+	to_chat(c, span_notice("***********************************************************  "))
+
+	var/custom_help = state.call_function_return_first("show_help", c)
+	
+	to_chat(c, "Help for current state ([state.name]):")
+	if(custom_help)
+		to_chat(c, custom_help)
+	else
+		to_chat(c, span_notice("None!"))
 	to_chat(c, span_notice("***********************************************************   "))
-
-
+	
 /datum/buildmode_mode/call_lua/change_settings(client/c)
 	if(!check_rights_for(c, R_DEBUG))
 		to_chat(c, span_red("Access denied, +DEBUG required to use this build mode."))
@@ -79,16 +82,18 @@
 	
 	var/right_click = p.Find("right")
 	var/middle_click = p.Find("middle")
-	
-	var/alt = p.Find("alt")
+
 	var/ctrl = p.Find("ctrl")
+	var/alt = p.Find("alt")
+	var/shift = p.Find("shift")
 	
 	var/list/index = list()
 	if(ctrl)
 		index.Add("Ctrl")
-
 	if(alt)
 		index.Add("Alt")
+	if(shift)
+		index.Add("Shift")
 
 	if(right_click)
 		index.Add("Right")
@@ -99,4 +104,10 @@
 	
 	var/func_name = "[jointext(index, "")]Click"
 	log_admin("Build Mode: [key_name(c)] ([COORD(c.mob)]) called LUA function [func_name]([object.name]) from state [state.name]. [object.name] was at [COORD(object)]")
-	state.call_function(func_name, object, c)
+	var/ret = state.call_function(func_name, object, c)
+	if(ret["status"] == "errored" || ret["status"] == "bad return") //error handling just in case
+		to_chat(c, span_red("[func_name]() returned an error: [ret["param"]]"))
+	else
+		if(ret["param"])
+			to_chat(c, jointext(ret["param"], "<br>"))
+	
